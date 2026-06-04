@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { Card } from '../components/Card';
@@ -56,6 +56,13 @@ export function PaycheckAllocation() {
 
   const settings = useLiveQuery(() => db.settings.toArray());
   const s = settings?.[0];
+
+  // Auto-fill paycheck amount from settings
+  useEffect(() => {
+    if (s?.paycheckAmount && paycheckAmount === 0) {
+      setPaycheckAmount(s.paycheckAmount);
+    }
+  }, [s?.paycheckAmount]);
 
   // Calculate dollar amount for a given key
   const getDollarAmount = useCallback((key: string, vals: Record<string, number> = values): number => {
