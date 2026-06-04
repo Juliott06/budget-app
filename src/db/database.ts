@@ -12,27 +12,20 @@ export interface PaycheckAllocation {
   id?: number;
   date: string;
   paycheckAmount: number;
-  allocations: {
-    savings: number;
-    emergency: number;
-    '401k': number;
-    roth_ira: number;
-    brokerage: number;
-    food: number;
-    spending: number;
-    gas: number;
-    bills: number;
-    misc: number;
-  };
+  allocations: Record<string, number>;
 }
 
 export interface WeeklyBudget {
   id?: number;
   weekStart: string;
-  food: { budgeted: number; used: number };
-  spending: { budgeted: number; used: number };
-  gas: { budgeted: number; used: number };
-  misc: { budgeted: number; used: number };
+  categories: Record<string, { budgeted: number; used: number }>;
+  rollover: number; // unspent from previous week
+}
+
+export interface MonthlyBudget {
+  id?: number;
+  month: string; // "2026-06"
+  categories: Record<string, { budgeted: number; used: number }>;
 }
 
 export interface Goal {
@@ -51,16 +44,24 @@ export interface NetWorthSnapshot {
   breakdown: Record<string, number>;
 }
 
+export type PayFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
+
 export interface AppSettings {
   id?: number;
   monthlyIncome: number;
   monthlySaved: number;
+  payFrequency: PayFrequency;
+  paycheckAmount: number;
+  payDays: string; // e.g. "15,30" for semimonthly
+  weeklyFunBudget: number;
+  funRolloverBalance: number; // accumulated unspent fun money
 }
 
 class BudgetDB extends Dexie {
   accounts!: Table<Account>;
   paycheckAllocations!: Table<PaycheckAllocation>;
   weeklyBudgets!: Table<WeeklyBudget>;
+  monthlyBudgets!: Table<MonthlyBudget>;
   goals!: Table<Goal>;
   netWorthSnapshots!: Table<NetWorthSnapshot>;
   settings!: Table<AppSettings>;
@@ -71,6 +72,15 @@ class BudgetDB extends Dexie {
       accounts: '++id, name, type',
       paycheckAllocations: '++id, date',
       weeklyBudgets: '++id, weekStart',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+    });
+    this.version(2).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
       goals: '++id, name, type',
       netWorthSnapshots: '++id, date',
       settings: '++id',
@@ -106,6 +116,14 @@ export async function seedDefaults() {
 
   const settingsCount = await db.settings.count();
   if (settingsCount === 0) {
-    await db.settings.add({ monthlyIncome: 0, monthlySaved: 0 });
+    await db.settings.add({
+      monthlyIncome: 0,
+      monthlySaved: 0,
+      payFrequency: 'semimonthly',
+      paycheckAmount: 0,
+      payDays: '15,30',
+      weeklyFunBudget: 50,
+      funRolloverBalance: 0,
+    });
   }
 }
