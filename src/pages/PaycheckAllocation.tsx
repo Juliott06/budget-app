@@ -5,6 +5,20 @@ import { Card } from '../components/Card';
 import { InputField } from '../components/InputField';
 import { formatCurrency } from '../utils/format';
 
+const payFrequencyLabels: Record<string, string> = {
+  weekly: 'Weekly (4x/month)',
+  biweekly: 'Biweekly (every 2 weeks)',
+  semimonthly: 'Semi-monthly (15th & 30th)',
+  monthly: 'Monthly (1x/month)',
+};
+
+const payFrequencyMultiplier: Record<string, number> = {
+  weekly: 4,
+  biweekly: 2.17,
+  semimonthly: 2,
+  monthly: 1,
+};
+
 // All available categories a user can pick from
 const allCategories: Record<string, { label: string; mode: 'dollar' | 'percent' }> = {
   savings: { label: 'Savings', mode: 'dollar' },
@@ -39,6 +53,9 @@ export function PaycheckAllocation() {
   const history = useLiveQuery(() =>
     db.paycheckAllocations.orderBy('date').reverse().limit(5).toArray()
   );
+
+  const settings = useLiveQuery(() => db.settings.toArray());
+  const s = settings?.[0];
 
   // Calculate dollar amount for a given key
   const getDollarAmount = useCallback((key: string, vals: Record<string, number> = values): number => {
@@ -201,6 +218,28 @@ export function PaycheckAllocation() {
           Suggest Split
         </button>
       </Card>
+
+      {s && (
+        <Card title="Pay Schedule">
+          <div className="pay-schedule-info">
+            <div className="stat-row">
+              <span>Frequency</span>
+              <span className="stat-value-sm">{payFrequencyLabels[s.payFrequency] || 'Semi-monthly'}</span>
+            </div>
+            {paycheckAmount > 0 && (
+              <div className="stat-row">
+                <span>Monthly total (est.)</span>
+                <span className="stat-value-sm accent">
+                  {formatCurrency(paycheckAmount * (payFrequencyMultiplier[s.payFrequency] || 2))}
+                </span>
+              </div>
+            )}
+            <p className="card-text" style={{ marginTop: 8 }}>
+              Change your pay schedule in Settings.
+            </p>
+          </div>
+        </Card>
+      )}
 
       <Card title="Allocations">
         <div className="redistribute-toggle">
