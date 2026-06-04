@@ -27,7 +27,7 @@ export async function importData(jsonString: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = JSON.parse(jsonString);
 
-  await db.transaction('rw', db.accounts, db.paycheckAllocations, db.weeklyBudgets, db.goals, db.netWorthSnapshots, db.settings, async () => {
+  await db.transaction('rw', [db.accounts, db.paycheckAllocations, db.weeklyBudgets, db.goals, db.netWorthSnapshots, db.settings], async () => {
     await db.accounts.clear();
     await db.paycheckAllocations.clear();
     await db.weeklyBudgets.clear();
