@@ -24,7 +24,8 @@ export function downloadBackup(jsonString: string) {
 }
 
 export async function importData(jsonString: string): Promise<void> {
-  const data = JSON.parse(jsonString);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data: any = JSON.parse(jsonString);
 
   await db.transaction('rw', db.accounts, db.paycheckAllocations, db.weeklyBudgets, db.goals, db.netWorthSnapshots, db.settings, async () => {
     await db.accounts.clear();
@@ -34,11 +35,13 @@ export async function importData(jsonString: string): Promise<void> {
     await db.netWorthSnapshots.clear();
     await db.settings.clear();
 
-    if (data.accounts) await db.accounts.bulkAdd(data.accounts.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
-    if (data.paycheckAllocations) await db.paycheckAllocations.bulkAdd(data.paycheckAllocations.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
-    if (data.weeklyBudgets) await db.weeklyBudgets.bulkAdd(data.weeklyBudgets.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
-    if (data.goals) await db.goals.bulkAdd(data.goals.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
-    if (data.netWorthSnapshots) await db.netWorthSnapshots.bulkAdd(data.netWorthSnapshots.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
-    if (data.settings) await db.settings.bulkAdd(data.settings.map((a: Record<string, unknown>) => { const { id, ...rest } = a; return rest; }));
+    const stripId = (arr: any[]) => arr.map(({ id: _id, ...rest }) => rest);
+
+    if (data.accounts) await db.accounts.bulkAdd(stripId(data.accounts));
+    if (data.paycheckAllocations) await db.paycheckAllocations.bulkAdd(stripId(data.paycheckAllocations));
+    if (data.weeklyBudgets) await db.weeklyBudgets.bulkAdd(stripId(data.weeklyBudgets));
+    if (data.goals) await db.goals.bulkAdd(stripId(data.goals));
+    if (data.netWorthSnapshots) await db.netWorthSnapshots.bulkAdd(stripId(data.netWorthSnapshots));
+    if (data.settings) await db.settings.bulkAdd(stripId(data.settings));
   });
 }

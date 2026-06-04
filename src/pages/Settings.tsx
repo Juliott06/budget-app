@@ -11,7 +11,7 @@ export function Settings() {
       const json = await exportData();
       downloadBackup(json);
       setStatus('✓ Backup downloaded!');
-    } catch {
+    } catch (_e) {
       setStatus('✗ Export failed');
     }
     setTimeout(() => setStatus(''), 3000);
@@ -24,7 +24,7 @@ export function Settings() {
       const text = await file.text();
       await importData(text);
       setStatus('✓ Data restored successfully!');
-    } catch {
+    } catch (_e) {
       setStatus('✗ Import failed. Check file format.');
     }
     setTimeout(() => setStatus(''), 3000);
