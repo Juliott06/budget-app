@@ -5,6 +5,7 @@ export async function exportData(): Promise<string> {
     accounts: await db.accounts.toArray(),
     paycheckAllocations: await db.paycheckAllocations.toArray(),
     weeklyBudgets: await db.weeklyBudgets.toArray(),
+    monthlyBudgets: await db.monthlyBudgets.toArray(),
     goals: await db.goals.toArray(),
     netWorthSnapshots: await db.netWorthSnapshots.toArray(),
     settings: await db.settings.toArray(),
@@ -27,10 +28,11 @@ export async function importData(jsonString: string): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const data: any = JSON.parse(jsonString);
 
-  await db.transaction('rw', [db.accounts, db.paycheckAllocations, db.weeklyBudgets, db.goals, db.netWorthSnapshots, db.settings], async () => {
+  await db.transaction('rw', [db.accounts, db.paycheckAllocations, db.weeklyBudgets, db.monthlyBudgets, db.goals, db.netWorthSnapshots, db.settings], async () => {
     await db.accounts.clear();
     await db.paycheckAllocations.clear();
     await db.weeklyBudgets.clear();
+    await db.monthlyBudgets.clear();
     await db.goals.clear();
     await db.netWorthSnapshots.clear();
     await db.settings.clear();
@@ -40,6 +42,7 @@ export async function importData(jsonString: string): Promise<void> {
     if (data.accounts) await db.accounts.bulkAdd(stripId(data.accounts));
     if (data.paycheckAllocations) await db.paycheckAllocations.bulkAdd(stripId(data.paycheckAllocations));
     if (data.weeklyBudgets) await db.weeklyBudgets.bulkAdd(stripId(data.weeklyBudgets));
+    if (data.monthlyBudgets) await db.monthlyBudgets.bulkAdd(stripId(data.monthlyBudgets));
     if (data.goals) await db.goals.bulkAdd(stripId(data.goals));
     if (data.netWorthSnapshots) await db.netWorthSnapshots.bulkAdd(stripId(data.netWorthSnapshots));
     if (data.settings) await db.settings.bulkAdd(stripId(data.settings));
