@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from '../db/database';
 import { Card } from '../components/Card';
@@ -31,31 +31,113 @@ export function PaycheckAllocation() {
   const [paycheckAmount, setPaycheckAmount] = useState(0);
   const [values, setValues] = useState<Record<string, number>>({});
   const [activeCategories, setActiveCategories] = useState<string[]>(defaultActive);
+  const [lockedKeys, setLockedKeys] = useState<Set<string>>(new Set());
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [autoRedistribute, setAutoRedistribute] = useState(true);
 
   const history = useLiveQuery(() =>
     db.paycheckAllocations.orderBy('date').reverse().limit(5).toArray()
   );
 
-  // Calculate dollar amounts (percent categories use paycheck * percent / 100)
-  function getDollarAmount(key: string): number {
-    const val = values[key] || 0;
+  // Calculate dollar amount for a given key
+  const getDollarAmount = useCallback((key: string, vals: Record<string, number> = values): number => {
+    const val = vals[key] || 0;
     const cat = allCategories[key];
     if (cat && cat.mode === 'percent') {
       return Math.round((paycheckAmount * val) / 100);
     }
     return val;
-  }
+  }, [paycheckAmount, values]);
 
   const totalAllocated = activeCategories.reduce((sum, key) => sum + getDollarAmount(key), 0);
   const remaining = paycheckAmount - totalAllocated;
+
+  // Smart redistribution: when one value changes, spread the difference across unlocked dollar categories
+  function handleValueChange(changedKey: string, newVal: number) {
+    const oldVal = values[changedKey] || 0;
+    const cat = allCategories[changedKey];
+    if (!cat) return;
+
+    const newValues = { ...values, [changedKey]: newVal };
+
+    if (autoRedistribute && paycheckAmount > 0) {
+      // Calculate the dollar difference this change creates
+      let dollarDiff: number;
+      if (cat.mode === 'percent') {
+        dollarDiff = Math.round((paycheckAmount * newVal) / 100) - Math.round((paycheckAmount * oldVal) / 100);
+      } else {
+        dollarDiff = newVal - oldVal;
+      }
+
+      if (dollarDiff !== 0) {
+        // Find other dollar-based categories that aren't locked and aren't the changed one
+        const redistributable = activeCategories.filter((k) => {
+          if (k === changedKey) return false;
+          if (lockedKeys.has(k)) return false;
+          const c = allCategories[k];
+          return c && c.mode === 'dollar';
+        });
+
+        if (redistributable.length > 0) {
+          // Get total of redistributable categories
+          const redistTotal = redistributable.reduce((s, k) => s + (newValues[k] || 0), 0);
+
+          if (redistTotal > 0) {
+            // Distribute proportionally (reduce others if changedKey increased, increase if decreased)
+            let distributed = 0;
+            redistributable.forEach((k, i) => {
+              const currentVal = newValues[k] || 0;
+              const proportion = currentVal / redistTotal;
+              if (i === redistributable.length - 1) {
+                // Last one gets remainder to avoid rounding issues
+                newValues[k] = Math.max(0, currentVal - (dollarDiff - distributed));
+              } else {
+                const adjustment = Math.round(dollarDiff * proportion);
+                newValues[k] = Math.max(0, currentVal - adjustment);
+                distributed += adjustment;
+              }
+            });
+          } else {
+            // All redistributable are zero — split evenly
+            const perItem = Math.round(Math.abs(dollarDiff) / redistributable.length);
+            redistributable.forEach((k) => {
+              if (dollarDiff < 0) {
+                // We freed up money, distribute it
+                newValues[k] = (newValues[k] || 0) + perItem;
+              }
+              // If dollarDiff > 0 and others are 0, we can't reduce further
+            });
+          }
+        }
+      }
+    }
+
+    setValues(newValues);
+  }
+
+  function toggleLock(key: string) {
+    setLockedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      return next;
+    });
+  }
 
   function removeCategory(key: string) {
     setActiveCategories((prev) => prev.filter((k) => k !== key));
     setValues((prev) => {
       const next = { ...prev };
       delete next[key];
+      return next;
+    });
+    setLockedKeys((prev) => {
+      const next = new Set(prev);
+      next.delete(key);
       return next;
     });
   }
@@ -86,6 +168,7 @@ export function PaycheckAllocation() {
       else suggestions[key] = Math.round(paycheckAmount * 0.05);
     });
     setValues(suggestions);
+    setLockedKeys(new Set());
   }
 
   async function saveAllocation() {
@@ -120,10 +203,25 @@ export function PaycheckAllocation() {
       </Card>
 
       <Card title="Allocations">
+        <div className="redistribute-toggle">
+          <label className="toggle-label">
+            <input
+              type="checkbox"
+              checked={autoRedistribute}
+              onChange={(e) => setAutoRedistribute(e.target.checked)}
+            />
+            <span>Smart redistribute</span>
+          </label>
+          <span className="toggle-hint">
+            {autoRedistribute ? 'Adjusting one will rebalance others' : 'Manual mode'}
+          </span>
+        </div>
+
         {activeCategories.map((key) => {
           const cat = allCategories[key];
           if (!cat) return null;
           const isPercent = cat.mode === 'percent';
+          const isLocked = lockedKeys.has(key);
 
           return (
             <div key={key} className="allocation-row">
@@ -131,7 +229,7 @@ export function PaycheckAllocation() {
                 <InputField
                   label={`${cat.label}${isPercent ? ' (%)' : ''}`}
                   value={values[key] || 0}
-                  onChange={(val) => setValues((prev) => ({ ...prev, [key]: val }))}
+                  onChange={(val) => handleValueChange(key, val)}
                   prefix={isPercent ? '%' : '$'}
                   step={isPercent ? 0.5 : 1}
                 />
@@ -141,6 +239,14 @@ export function PaycheckAllocation() {
                   </span>
                 )}
               </div>
+              <button
+                className={`btn-icon lock-btn ${isLocked ? 'locked' : ''}`}
+                onClick={() => toggleLock(key)}
+                aria-label={isLocked ? `Unlock ${cat.label}` : `Lock ${cat.label}`}
+                title={isLocked ? 'Locked — won\'t change during redistribution' : 'Click to lock'}
+              >
+                {isLocked ? '🔒' : '🔓'}
+              </button>
               <button
                 className="btn-icon remove-btn"
                 onClick={() => removeCategory(key)}
@@ -204,4 +310,3 @@ export function PaycheckAllocation() {
     </div>
   );
 }
-
