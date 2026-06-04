@@ -17,6 +17,7 @@ export function NetWorth() {
   }
 
   async function takeSnapshot() {
+    if (!accounts) return;
     const breakdown: Record<string, number> = {};
     accounts.forEach((a) => {
       breakdown[a.name] = a.balance;
