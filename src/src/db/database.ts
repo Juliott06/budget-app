@@ -1,0 +1,156 @@
+import Dexie, { Table } from 'dexie';
+
+export interface Account {
+  id?: number;
+  name: string;
+  type: 'checking' | 'savings' | 'emergency' | 'roth_ira' | '401k' | 'brokerage';
+  balance: number;
+  updatedAt: string;
+}
+
+export interface PaycheckAllocation {
+  id?: number;
+  date: string;
+  paycheckAmount: number;
+  allocations: Record<string, number>;
+}
+
+export interface WeeklyBudget {
+  id?: number;
+  weekStart: string;
+  categories: Record<string, { budgeted: number; used: number }>;
+  rollover: number;
+}
+
+export interface MonthlyBudget {
+  id?: number;
+  month: string; // "2026-06"
+  categories: Record<string, { budgeted: number; used: number }>;
+}
+
+export interface Goal {
+  id?: number;
+  name: string;
+  type: 'emergency' | 'roth_ira' | 'savings' | 'custom';
+  target: number;
+  current: number;
+  icon?: string;
+}
+
+export interface NetWorthSnapshot {
+  id?: number;
+  date: string;
+  total: number;
+  breakdown: Record<string, number>;
+}
+
+export type PayFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
+
+// The active plan drives the budget page and dashboard
+export interface ActivePlan {
+  id?: number;
+  paycheckAmount: number;
+  payFrequency: PayFrequency;
+  // Each category: key -> { amount (dollar), isPercent, percentValue }
+  allocations: Record<string, { amount: number; isPercent: boolean; percentValue: number }>;
+  categories: string[]; // ordered list of active category keys
+  createdAt: string;
+}
+
+export interface AppSettings {
+  id?: number;
+  monthlyIncome: number;
+  monthlySaved: number;
+  payFrequency: PayFrequency;
+  paycheckAmount: number;
+  payDays: string;
+  weeklyFunBudget: number;
+  funRolloverBalance: number;
+}
+
+class BudgetDB extends Dexie {
+  accounts!: Table<Account>;
+  paycheckAllocations!: Table<PaycheckAllocation>;
+  weeklyBudgets!: Table<WeeklyBudget>;
+  monthlyBudgets!: Table<MonthlyBudget>;
+  goals!: Table<Goal>;
+  netWorthSnapshots!: Table<NetWorthSnapshot>;
+  settings!: Table<AppSettings>;
+  activePlan!: Table<ActivePlan>;
+
+  constructor() {
+    super('BudgetDashboard');
+    this.version(1).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+    });
+    this.version(2).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+    });
+    this.version(3).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+      activePlan: '++id',
+    });
+  }
+}
+
+export const db = new BudgetDB();
+
+export async function seedDefaults() {
+  const count = await db.accounts.count();
+  if (count === 0) {
+    await db.accounts.bulkAdd([
+      { name: 'Checking', type: 'checking', balance: 0, updatedAt: new Date().toISOString() },
+      { name: 'Savings', type: 'savings', balance: 0, updatedAt: new Date().toISOString() },
+      { name: 'Emergency Fund', type: 'emergency', balance: 0, updatedAt: new Date().toISOString() },
+      { name: 'Roth IRA', type: 'roth_ira', balance: 0, updatedAt: new Date().toISOString() },
+      { name: '401k', type: '401k', balance: 0, updatedAt: new Date().toISOString() },
+      { name: 'Fidelity Brokerage', type: 'brokerage', balance: 0, updatedAt: new Date().toISOString() },
+    ]);
+  }
+
+  const goalCount = await db.goals.count();
+  if (goalCount === 0) {
+    await db.goals.bulkAdd([
+      { name: 'Emergency Fund', type: 'emergency', target: 5000, current: 0 },
+      { name: 'Roth IRA (Yearly)', type: 'roth_ira', target: 7000, current: 0 },
+      { name: 'Savings Goal', type: 'savings', target: 10000, current: 0 },
+      { name: 'Travel Fund', type: 'custom', target: 2000, current: 0 },
+    ]);
+  }
+
+  const settingsCount = await db.settings.count();
+  if (settingsCount === 0) {
+    await db.settings.add({
+      monthlyIncome: 0,
+      monthlySaved: 0,
+      payFrequency: 'semimonthly',
+      paycheckAmount: 0,
+      payDays: '15,30',
+      weeklyFunBudget: 50,
+      funRolloverBalance: 0,
+    });
+  }
+}
+
+// Spending categories (used for budget tracking from plan)
+export const spendingCategoryKeys = ['food', 'spending', 'gas', 'bills', 'misc', 'rent', 'subscriptions', 'charity', 'health', 'travel', 'education'];
+
+// Savings/investment categories (tracked toward goals, not spending)
+export const savingsCategoryKeys = ['savings', 'emergency', '401k', 'roth_ira', 'brokerage'];
