@@ -4,6 +4,7 @@ const tabs = [
   { path: '/', label: 'Home', icon: '📊' },
   { path: '/paycheck', label: 'Pay', icon: '💰' },
   { path: '/budget', label: 'Budget', icon: '📋' },
+  { path: '/hours', label: 'Hours', icon: '⏱️' },
   { path: '/goals', label: 'Goals', icon: '🎯' },
   { path: '/networth', label: 'Worth', icon: '📈' },
 ];
