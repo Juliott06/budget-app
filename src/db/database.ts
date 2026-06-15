@@ -19,7 +19,7 @@ export interface WeeklyBudget {
   id?: number;
   weekStart: string;
   categories: Record<string, { budgeted: number; used: number }>;
-  rollover: number; // unspent from previous week
+  rollover: number;
 }
 
 export interface MonthlyBudget {
@@ -46,15 +46,32 @@ export interface NetWorthSnapshot {
 
 export type PayFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
 
+export interface ActivePlan {
+  id?: number;
+  paycheckAmount: number;
+  payFrequency: PayFrequency;
+  allocations: Record<string, { amount: number; isPercent: boolean; percentValue: number }>;
+  categories: string[];
+  createdAt: string;
+}
+
+export interface WorkHoursEntry {
+  id?: number;
+  date: string;
+  hours: number;
+  source: 'wfh' | 'drive-alone' | 'lunch' | 'japan' | 'july4th' | 'plane' | 'other';
+  note?: string;
+}
+
 export interface AppSettings {
   id?: number;
   monthlyIncome: number;
   monthlySaved: number;
   payFrequency: PayFrequency;
   paycheckAmount: number;
-  payDays: string; // e.g. "15,30" for semimonthly
+  payDays: string;
   weeklyFunBudget: number;
-  funRolloverBalance: number; // accumulated unspent fun money
+  funRolloverBalance: number;
 }
 
 class BudgetDB extends Dexie {
@@ -65,6 +82,8 @@ class BudgetDB extends Dexie {
   goals!: Table<Goal>;
   netWorthSnapshots!: Table<NetWorthSnapshot>;
   settings!: Table<AppSettings>;
+  activePlan!: Table<ActivePlan>;
+  workHoursEntries!: Table<WorkHoursEntry>;
 
   constructor() {
     super('BudgetDashboard');
@@ -85,12 +104,32 @@ class BudgetDB extends Dexie {
       netWorthSnapshots: '++id, date',
       settings: '++id',
     });
+    this.version(3).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+      activePlan: '++id',
+    });
+    this.version(4).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+      activePlan: '++id',
+      workHoursEntries: '++id, date, source',
+    });
   }
 }
 
 export const db = new BudgetDB();
 
-// Seed default data if empty
 export async function seedDefaults() {
   const count = await db.accounts.count();
   if (count === 0) {
@@ -127,3 +166,6 @@ export async function seedDefaults() {
     });
   }
 }
+
+export const spendingCategoryKeys = ['food', 'spending', 'gas', 'bills', 'misc', 'rent', 'subscriptions', 'charity', 'health', 'travel', 'education'];
+export const savingsCategoryKeys = ['savings', 'emergency', '401k', 'roth_ira', 'brokerage'];
