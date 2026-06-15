@@ -7,6 +7,7 @@ import { WeeklyBudget } from './pages/WeeklyBudget';
 import { Goals } from './pages/Goals';
 import { NetWorth } from './pages/NetWorth';
 import { Settings } from './pages/Settings';
+import { WorkHours } from './pages/WorkHours';
 import { seedDefaults } from './db/database';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
             <Route path="/budget" element={<WeeklyBudget />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/networth" element={<NetWorth />} />
+            <Route path="/hours" element={<WorkHours />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
         </main>
