@@ -46,15 +46,21 @@ export interface NetWorthSnapshot {
 
 export type PayFrequency = 'weekly' | 'biweekly' | 'semimonthly' | 'monthly';
 
-// The active plan drives the budget page and dashboard
 export interface ActivePlan {
   id?: number;
   paycheckAmount: number;
   payFrequency: PayFrequency;
-  // Each category: key -> { amount (dollar), isPercent, percentValue }
   allocations: Record<string, { amount: number; isPercent: boolean; percentValue: number }>;
-  categories: string[]; // ordered list of active category keys
+  categories: string[];
   createdAt: string;
+}
+
+export interface WorkHoursEntry {
+  id?: number;
+  date: string;
+  hours: number;
+  source: 'wfh' | 'drive-alone' | 'lunch' | 'japan' | 'july4th' | 'plane' | 'other';
+  note?: string;
 }
 
 export interface AppSettings {
@@ -77,6 +83,7 @@ class BudgetDB extends Dexie {
   netWorthSnapshots!: Table<NetWorthSnapshot>;
   settings!: Table<AppSettings>;
   activePlan!: Table<ActivePlan>;
+  workHoursEntries!: Table<WorkHoursEntry>;
 
   constructor() {
     super('BudgetDashboard');
@@ -106,6 +113,17 @@ class BudgetDB extends Dexie {
       netWorthSnapshots: '++id, date',
       settings: '++id',
       activePlan: '++id',
+    });
+    this.version(4).stores({
+      accounts: '++id, name, type',
+      paycheckAllocations: '++id, date',
+      weeklyBudgets: '++id, weekStart',
+      monthlyBudgets: '++id, month',
+      goals: '++id, name, type',
+      netWorthSnapshots: '++id, date',
+      settings: '++id',
+      activePlan: '++id',
+      workHoursEntries: '++id, date, source',
     });
   }
 }
@@ -149,8 +167,5 @@ export async function seedDefaults() {
   }
 }
 
-// Spending categories (used for budget tracking from plan)
 export const spendingCategoryKeys = ['food', 'spending', 'gas', 'bills', 'misc', 'rent', 'subscriptions', 'charity', 'health', 'travel', 'education'];
-
-// Savings/investment categories (tracked toward goals, not spending)
 export const savingsCategoryKeys = ['savings', 'emergency', '401k', 'roth_ira', 'brokerage'];
